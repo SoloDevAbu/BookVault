@@ -34,12 +34,17 @@ export default function SignUp() {
       const data = await response.data
 
       if (data) {
-        router.push('/dashboard')
+        // Redirect to signin with success message instead of dashboard
+        router.push('/signin?message=Account created successfully! Please sign in with your credentials.')
       } else {
         setError(data.error || 'Something went wrong')
       }
-    } catch (error) {
-      setError('Something went wrong. Please try again.')
+    } catch (error: any) {
+      if (error.response?.data?.error) {
+        setError(error.response.data.error)
+      } else {
+        setError('Something went wrong. Please try again.')
+      }
     } finally {
       setIsLoading(false)
     }
