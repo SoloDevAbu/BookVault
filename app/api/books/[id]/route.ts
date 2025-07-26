@@ -6,11 +6,12 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const book = await prisma.book.findUnique({
-      where: { id: params.id }
+      where: { id }
     })
 
     if (!book) {
