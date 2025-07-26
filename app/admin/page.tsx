@@ -62,7 +62,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (status === 'unauthenticated') {
-      router.push('/auth/signin')
+      router.push('/signin')
     } else if (status === 'authenticated') {
       // Check if user is admin (you can modify this check)
       if (session?.user?.email !== process.env.NEXT_PUBLIC_ADMIN_EMAIL) {
@@ -185,7 +185,7 @@ export default function AdminDashboard() {
         <div className="text-center">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
-          <p className="text-gray-600 mb-4">You don't have permission to access this page.</p>
+          <p className="text-gray-600 mb-4">You don&apos;t have permission to access this page.</p>
           <Link href="/dashboard">
             <Button>Go to Dashboard</Button>
           </Link>

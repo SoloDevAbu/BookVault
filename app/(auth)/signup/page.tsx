@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { BookOpen, Eye, EyeOff } from 'lucide-react'
+import axios from 'axios'
 
 export default function SignUp() {
   const [name, setName] = useState('')
@@ -24,18 +25,16 @@ export default function SignUp() {
     setError('')
 
     try {
-      const response = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ name, email, password })
+      const response = await axios.post('/api/auth/signup', {
+        name,
+        email,
+        password,
       })
 
-      const data = await response.json()
+      const data = await response.data
 
-      if (response.ok) {
-        router.push('/auth/signin?message=Account created successfully')
+      if (data) {
+        router.push('/dashboard')
       } else {
         setError(data.error || 'Something went wrong')
       }

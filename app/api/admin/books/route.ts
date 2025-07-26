@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { supabaseAdmin } from '@/lib/supabase'
+import { uploadFile, getPublicUrl, deleteFile } from '@/lib/supabase'
+
+// Add dynamic configuration to prevent static export issues
+export const dynamic = 'force-dynamic'
+
+// Storage bucket name - change this if you want to use a different bucket
+const STORAGE_BUCKET = 'books'
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,12 +21,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if user is admin (you can modify this logic based on your admin identification)
+    // Check if user is admin using role
     const user = await prisma.user.findUnique({
       where: { email: session.user.email }
     })
 
-    if (!user || user.email !== process.env.ADMIN_EMAIL) {
+    if (!user || user.role !== 'ADMIN') {
       return NextResponse.json(
         { error: 'Admin access required' },
         { status: 403 }
@@ -42,16 +48,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Upload PDF to Supabase Storage
+    // Upload PDF to Supabase Storage using helper function
     const fileName = `${Date.now()}-${pdfFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
     const fileBuffer = await pdfFile.arrayBuffer()
     
-    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
-      .from('books')
-      .upload(fileName, fileBuffer, {
+    const { data: uploadData, error: uploadError } = await uploadFile(
+      STORAGE_BUCKET,
+      fileName,
+      fileBuffer,
+      {
         contentType: 'application/pdf',
         upsert: false
-      })
+      }
+    )
 
     if (uploadError) {
       console.error('Upload error:', uploadError)
@@ -61,10 +70,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get public URL for the uploaded file
-    const { data: urlData } = supabaseAdmin.storage
-      .from('books')
-      .getPublicUrl(fileName)
+    // Get public URL for the uploaded file using helper function
+    const publicUrl = getPublicUrl(STORAGE_BUCKET, fileName)
 
     // Create book record in database
     const book = await prisma.book.create({
@@ -74,7 +81,7 @@ export async function POST(request: NextRequest) {
         description: description || null,
         category: category as any,
         coverImage: coverImage || null,
-        pdfUrl: urlData.publicUrl,
+        pdfUrl: publicUrl,
         fileName,
         fileSize: pdfFile.size,
         totalPages: null // You can implement PDF page counting if needed
@@ -105,12 +112,12 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Check if user is admin
+    // Check if user is admin using role
     const user = await prisma.user.findUnique({
       where: { email: session.user.email }
     })
 
-    if (!user || user.email !== process.env.ADMIN_EMAIL) {
+    if (!user || user.role !== 'ADMIN') {
       return NextResponse.json(
         { error: 'Admin access required' },
         { status: 403 }
@@ -139,10 +146,13 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Delete file from Supabase Storage
-    await supabaseAdmin.storage
-      .from('books')
-      .remove([book.fileName])
+    // Delete file from Supabase Storage using helper function
+    const { error: deleteError } = await deleteFile(STORAGE_BUCKET, book.fileName)
+
+    if (deleteError) {
+      console.error('File deletion error:', deleteError)
+      // Continue with database deletion even if file deletion fails
+    }
 
     // Delete book record from database
     await prisma.book.delete({

@@ -47,6 +47,7 @@
     "@types/react-dom": "18.2.7",
     "@types/react-pdf": "^5.0.7",
     "autoprefixer": "10.4.15",
+    "axios": "^1.11.0",
     "bcryptjs": "^3.0.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
