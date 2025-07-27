@@ -42,7 +42,17 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json(
-      { message: 'User created successfully', userId: user.id },
+      { 
+        message: 'User created successfully', 
+        userId: user.id,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role
+        },
+        autoSignIn: true
+      },
       { status: 201 }
     )
   } catch (error) {

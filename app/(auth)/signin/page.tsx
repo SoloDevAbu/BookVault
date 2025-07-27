@@ -48,12 +48,22 @@ export default function SignIn() {
       if (result?.error) {
         setError("Invalid email or password");
       } else {
+        // Wait a bit for the session to update
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         // Wait for session to update and get the latest session
         const session = await getSession()
         
-        if ((session?.user as any)?.role === 'ADMIN') {
-          router.push('/admin')
+        if (session?.user) {
+          const userRole = (session.user as any)?.role;
+          
+          if (userRole === 'ADMIN') {
+            router.push('/admin')
+          } else {
+            router.push('/dashboard')
+          }
         } else {
+          // Fallback redirect if session is not immediately available
           router.push('/dashboard')
         }
       }

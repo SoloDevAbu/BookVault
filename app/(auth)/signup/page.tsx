@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { signIn } from 'next-auth/react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,9 +34,31 @@ export default function SignUp() {
 
       const data = await response.data
 
-      if (data) {
-        // Redirect to signin with success message instead of dashboard
-        router.push('/signin?message=Account created successfully! Please sign in with your credentials.')
+      if (data && data.autoSignIn) {
+        // Auto-signin the user after successful signup
+        const signInResult = await signIn('credentials', {
+          email,
+          password,
+          redirect: false,
+        })
+
+        if (signInResult?.error) {
+          setError('Account created but sign in failed. Please try signing in manually.')
+        } else {
+          // Wait a bit for the session to update
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Get the updated session to check user role
+          const { getSession } = await import('next-auth/react');
+          const session = await getSession();
+          
+          // Redirect based on user role
+          if (session?.user && (session.user as any)?.role === 'ADMIN') {
+            router.push('/admin')
+          } else {
+            router.push('/dashboard')
+          }
+        }
       } else {
         setError(data.error || 'Something went wrong')
       }
