@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { BookOpen, ArrowLeft, ChevronLeft, ChevronRight, Download } from 'lucide-react'
+import Image from 'next/image'
 
 interface Book {
   id: string
@@ -28,7 +29,7 @@ export default function BookReader() {
   const [book, setBook] = useState<Book | null>(null)
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
-  const [pdfLoaded, setPdfLoaded] = useState(false)
+  const [scale, setScale] = useState(1.0)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -41,6 +42,28 @@ export default function BookReader() {
       fetchBook()
     }
   }, [params.id])
+
+  // Add keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        goToPreviousPage()
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault()
+        goToNextPage()
+      } else if (event.key === '+' || event.key === '=') {
+        event.preventDefault()
+        zoomIn()
+      } else if (event.key === '-') {
+        event.preventDefault()
+        zoomOut()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [book?.totalPages])
 
   const fetchBook = async () => {
     try {
@@ -63,6 +86,22 @@ export default function BookReader() {
     return category.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase())
   }
 
+  const goToPreviousPage = () => {
+    setCurrentPage(prev => Math.max(1, prev - 1))
+  }
+
+  const goToNextPage = () => {
+    setCurrentPage(prev => Math.min(book?.totalPages || prev, prev + 1))
+  }
+
+  const zoomIn = () => {
+    setScale(prev => Math.min(prev + 0.2, 2.0))
+  }
+
+  const zoomOut = () => {
+    setScale(prev => Math.max(prev - 0.2, 0.5))
+  }
+
   if (status === 'loading' || loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -82,7 +121,7 @@ export default function BookReader() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto px-4 py-4 lg:max-w-none lg:px-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <Link href="/dashboard">
@@ -98,24 +137,12 @@ export default function BookReader() {
                 <p className="text-sm text-gray-600">by {book.author}</p>
               </div>
             </div>
-            
-            <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-600 hidden sm:block">
-                Page {currentPage} of {book.totalPages || '?'}
-              </span>
-              <Button variant="outline" size="sm" asChild>
-                <a href={book.pdfUrl} target="_blank" rel="noopener noreferrer">
-                  <Download className="h-4 w-4 mr-2" />
-                  Download
-                </a>
-              </Button>
-            </div>
           </div>
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
+      <div className="w-full px-4 py-8">
+        <div className="max-w-4xl mx-auto lg:max-w-none lg:px-8">
           {/* Book Info Card */}
           <Card className="mb-8">
             <CardContent className="p-6">
@@ -123,10 +150,12 @@ export default function BookReader() {
                 <div className="flex-shrink-0">
                   <div className="w-32 h-48 bg-gradient-to-br from-blue-100 to-orange-100 rounded-lg flex items-center justify-center">
                     {book.coverImage ? (
-                      <img
+                      <Image
                         src={book.coverImage}
                         alt={book.title}
                         className="w-full h-full object-cover rounded-lg"
+                        width={128}
+                        height={192}
                       />
                     ) : (
                       <BookOpen className="h-12 w-12 text-blue-400" />
@@ -160,52 +189,14 @@ export default function BookReader() {
             <CardContent className="p-6">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-gray-900">Read Online</h2>
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="text-sm px-3 py-1 bg-gray-100 rounded">
-                    {currentPage} / {book.totalPages || '?'}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCurrentPage(currentPage + 1)}
-                    disabled={book.totalPages ? currentPage >= book.totalPages : false}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
               </div>
               
-              <div className="bg-white rounded-lg border min-h-[600px] flex items-center justify-center">
-                <div className="text-center">
-                  <iframe
-                    src={`${book.pdfUrl}#page=${currentPage}&view=FitH&toolbar=0&navpanes=0&scrollbar=0`}
-                    className="w-full h-[600px] border-0"
-                    title={book.title}
-                    onLoad={() => setPdfLoaded(true)}
-                  />
-                  {!pdfLoaded && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
-                      <div className="text-center">
-                        <BookOpen className="h-12 w-12 text-blue-600 animate-pulse mx-auto mb-4" />
-                        <p className="text-gray-600">Loading PDF...</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              <div className="mt-4 text-center">
-                <p className="text-sm text-gray-500">
-                  Use the navigation buttons above or scroll within the PDF to read
-                </p>
+              <div className="bg-white rounded-lg border min-h-[600px] lg:min-h-[800px] flex items-center justify-center overflow-auto">
+                <iframe
+                  src={`${book.pdfUrl}#toolbar=1&navpanes=1&scrollbar=1`}
+                  className="w-full h-[600px] lg:h-[800px] border-0"
+                  title={book.title}
+                />
               </div>
             </CardContent>
           </Card>
