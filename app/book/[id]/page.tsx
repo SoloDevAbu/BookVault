@@ -7,8 +7,9 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { BookOpen, ArrowLeft, ChevronLeft, ChevronRight, Download } from 'lucide-react'
+import { BookOpen, ArrowLeft, ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut } from 'lucide-react'
 import Image from 'next/image'
+import { Document, Page, pdfjs } from 'react-pdf'
 
 interface Book {
   id: string
@@ -30,6 +31,17 @@ export default function BookReader() {
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [scale, setScale] = useState(1.0)
+  const [numPages, setNumPages] = useState<number | null>(null)
+  const [pdfLoading, setPdfLoading] = useState(true)
+  const [pdfError, setPdfError] = useState<string | null>(null)
+
+  // Set up PDF.js worker
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Use local PDF worker file
+      pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+    }
+  }, []);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -63,7 +75,7 @@ export default function BookReader() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [book?.totalPages])
+  }, [numPages])
 
   const fetchBook = async () => {
     try {
@@ -91,7 +103,7 @@ export default function BookReader() {
   }
 
   const goToNextPage = () => {
-    setCurrentPage(prev => Math.min(book?.totalPages || prev, prev + 1))
+    setCurrentPage(prev => Math.min(numPages || prev, prev + 1))
   }
 
   const zoomIn = () => {
@@ -100,6 +112,36 @@ export default function BookReader() {
 
   const zoomOut = () => {
     setScale(prev => Math.max(prev - 0.2, 0.5))
+  }
+
+  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+    setNumPages(numPages)
+    setPdfLoading(false)
+    setPdfError(null)
+  }
+
+  const onDocumentLoadError = (error: Error) => {
+    console.error('Error loading PDF:', error)
+    
+    // Handle specific version mismatch errors
+    if (error.message.includes('API version') && error.message.includes('Worker version')) {
+      setPdfError('PDF viewer version mismatch. Please refresh the page and try again.')
+    } else if (error.message.includes('Failed to fetch')) {
+      setPdfError('Failed to load PDF. Please check your internet connection and try again.')
+    } else {
+      setPdfError('Failed to load PDF. Please try again.')
+    }
+    
+    setPdfLoading(false)
+  }
+
+  const handleDownload = () => {
+    if (book?.pdfUrl) {
+      const link = document.createElement('a')
+      link.href = book.pdfUrl
+      link.download = `${book.title}.pdf`
+      link.click()
+    }
   }
 
   if (status === 'loading' || loading) {
@@ -187,16 +229,100 @@ export default function BookReader() {
           {/* PDF Viewer */}
           <Card>
             <CardContent className="p-6">
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex items-center justify-between flex-wrap gap-4">
                 <h2 className="text-lg font-semibold text-gray-900">Read Online</h2>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={zoomOut}
+                    disabled={scale <= 0.5}
+                  >
+                    <ZoomOut className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm text-gray-600 min-w-[60px] text-center">
+                    {Math.round(scale * 100)}%
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={zoomIn}
+                    disabled={scale >= 2.0}
+                  >
+                    <ZoomIn className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownload}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download
+                  </Button>
+                </div>
               </div>
               
-              <div className="bg-white rounded-lg border min-h-[600px] lg:min-h-[800px] flex items-center justify-center overflow-auto">
-                <iframe
-                  src={`${book.pdfUrl}#toolbar=1&navpanes=1&scrollbar=1`}
-                  className="w-full h-[600px] lg:h-[800px] border-0"
-                  title={book.title}
-                />
+              <div className="bg-white rounded-lg border min-h-[600px] lg:min-h-[800px] flex flex-col items-center justify-center overflow-auto">
+                {pdfError ? (
+                  <div className="text-center p-8">
+                    <BookOpen className="h-16 w-16 text-red-400 mx-auto mb-4" />
+                    <p className="text-red-600 mb-4">{pdfError}</p>
+                    <Button onClick={() => window.location.reload()}>
+                      Try Again
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="w-full flex flex-col items-center">
+                    <Document
+                      file={book.pdfUrl}
+                      onLoadSuccess={onDocumentLoadSuccess}
+                      onLoadError={onDocumentLoadError}
+                      loading={
+                        <div className="text-center p-8">
+                          <BookOpen className="h-12 w-12 text-blue-600 animate-pulse mx-auto mb-4" />
+                          <p className="text-gray-600">Loading PDF...</p>
+                        </div>
+                      }
+                    >
+                      <Page
+                        pageNumber={currentPage}
+                        scale={scale}
+                        className="shadow-lg"
+                        loading={
+                          <div className="text-center p-4">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                          </div>
+                        }
+                      />
+                    </Document>
+                    
+                    {numPages && (
+                      <div className="mt-6 flex items-center justify-center gap-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={goToPreviousPage}
+                          disabled={currentPage <= 1}
+                        >
+                          <ChevronLeft className="h-4 w-4 mr-1" />
+                          Previous
+                        </Button>
+                        <span className="text-sm text-gray-600">
+                          Page {currentPage} of {numPages}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={goToNextPage}
+                          disabled={currentPage >= numPages}
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4 ml-1" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
