@@ -332,6 +332,11 @@ export default function AdminDashboard() {
                     <p className="text-xs text-gray-500">
                       Only PDF files are allowed. Maximum file size: 50MB
                     </p>
+                    {pdfFile && (
+                      <p className={`text-xs ${pdfFile.size > 50 * 1024 * 1024 ? 'text-red-500' : 'text-green-500'}`}>
+                        File size: {(pdfFile.size / (1024 * 1024)).toFixed(2)}MB
+                      </p>
+                    )}
                   </div>
 
                   <Button 

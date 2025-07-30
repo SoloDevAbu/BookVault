@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
   output   = "../app/generated/prisma"
@@ -9,6 +6,36 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  role          UserRole  @default(USER)
+
+  @@map("users")
+}
+
+model Book {
+  id          String       @id @default(cuid())
+  title       String
+  author      String
+  description String?
+  category    BookCategory @default(OTHER)
+  coverImage  String?
+  pdfUrl      String
+  fileName    String
+  fileSize    Int
+  totalPages  Int?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("books")
 }
 
 enum UserRole {
@@ -32,36 +59,4 @@ enum BookCategory {
   MYSTERY
   FANTASY
   OTHER
-}
-
-model User {
-  id            String    @id @default(cuid())
-  name          String
-  email         String    @unique
-  password      String
-  emailVerified DateTime?
-  image         String?
-  createdAt     DateTime  @default(now())
-  role          UserRole  @default(USER)
-  // Add any additional fields needed for authentication here
-  // e.g., resetPasswordToken String? etc.
-  // Remove accounts and sessions relations
-  @@map("users")
-}
-
-model Book {
-  id          String       @id @default(cuid())
-  title       String
-  author      String
-  description String?      @db.Text
-  category    BookCategory @default(OTHER)
-  coverImage  String?
-  pdfUrl      String
-  fileName    String
-  fileSize    Int
-  totalPages  Int?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  
-  @@map("books")
 }
