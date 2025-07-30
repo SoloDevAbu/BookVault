@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { uploadFile, getPublicUrl, deleteFile } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase'
 
 // Add dynamic configuration to prevent static export issues
 export const dynamic = 'force-dynamic'
@@ -125,12 +125,17 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Delete file from Supabase Storage using helper function
-    const { error: deleteError } = await deleteFile(STORAGE_BUCKET, book.fileName)
+    // Delete file from Supabase Storage using admin client
+    const { data: deleteData, error: deleteError } = await supabaseAdmin.storage
+      .from(STORAGE_BUCKET)
+      .remove([book.fileName])
 
     if (deleteError) {
       console.error('File deletion error:', deleteError)
-      // Continue with database deletion even if file deletion fails
+      // Log the error but continue with database deletion
+      // This prevents orphaned database records if file deletion fails
+    } else {
+      console.log('File deleted successfully:', book.fileName)
     }
 
     // Delete book record from database
@@ -139,7 +144,11 @@ export async function DELETE(request: NextRequest) {
     })
 
     return NextResponse.json(
-      { message: 'Book deleted successfully' },
+      { 
+        message: 'Book deleted successfully',
+        fileDeleted: !deleteError,
+        fileName: book.fileName
+      },
       { status: 200 }
     )
   } catch (error) {

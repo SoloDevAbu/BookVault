@@ -30,69 +30,55 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const formData = await request.formData()
-    const file = formData.get('file') as File
+    const body = await request.json()
+    const { fileName, fileSize, fileType } = body
 
-    if (!file) {
+    if (!fileName || !fileSize || !fileType) {
       return NextResponse.json(
-        { error: 'No file provided' },
+        { error: 'Missing required fields' },
         { status: 400 }
       )
     }
 
     // Check file size (50MB limit for Supabase free tier)
     const maxFileSize = 50 * 1024 * 1024 // 50MB in bytes
-    if (file.size > maxFileSize) {
+    if (fileSize > maxFileSize) {
       return NextResponse.json(
-        { error: `File size too large. Maximum allowed size is 50MB. Current file size: ${(file.size / (1024 * 1024)).toFixed(2)}MB` },
+        { error: `File size too large. Maximum allowed size is 50MB. Current file size: ${(fileSize / (1024 * 1024)).toFixed(2)}MB` },
         { status: 400 }
       )
     }
 
     // Check file type
-    if (file.type !== 'application/pdf') {
+    if (fileType !== 'application/pdf') {
       return NextResponse.json(
         { error: 'Only PDF files are allowed' },
         { status: 400 }
       )
     }
 
-    // Generate unique filename
-    const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-    
-    // Convert file to ArrayBuffer
-    const fileBuffer = await file.arrayBuffer()
-
-    // Upload to Supabase Storage using admin client (bypasses RLS)
-    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+    // Generate signed URL for direct upload
+    const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin.storage
       .from('books')
-      .upload(fileName, fileBuffer, {
-        contentType: 'application/pdf',
-        upsert: false
-      })
+      .createSignedUploadUrl(fileName)
 
-    if (uploadError) {
-      console.error('Upload error:', uploadError)
+    if (signedUrlError) {
+      console.error('Signed URL error:', signedUrlError)
       return NextResponse.json(
-        { error: 'Failed to upload file' },
+        { error: 'Failed to generate upload URL' },
         { status: 500 }
       )
     }
 
-    // Get public URL
-    const { data: urlData } = supabaseAdmin.storage
-      .from('books')
-      .getPublicUrl(fileName)
-
     return NextResponse.json({
       success: true,
+      signedUrl: signedUrlData.signedUrl,
       fileName,
-      publicUrl: urlData.publicUrl,
-      fileSize: file.size
+      fileSize
     })
 
   } catch (error) {
-    console.error('Upload error:', error)
+    console.error('Upload URL generation error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

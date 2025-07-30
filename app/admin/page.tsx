@@ -14,6 +14,11 @@ import { Badge } from '@/components/ui/badge'
 import { BookOpen, Upload, Trash2, User, LogOut, Plus, AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
+// Helper function to get Supabase public URL
+const getSupabasePublicUrl = (fileName: string) => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  return `${supabaseUrl}/storage/v1/object/public/books/${fileName}`
+}
 
 interface Book {
   id: string
@@ -99,22 +104,47 @@ export default function AdminDashboard() {
     }
 
     try {
-      // Upload file via API route (bypasses RLS)
-      const uploadFormData = new FormData()
-      uploadFormData.append('file', pdfFile)
+      // Generate unique filename
+      const fileName = `${Date.now()}-${pdfFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
 
-      const uploadResponse = await fetch('/api/admin/upload', {
+      // Get signed URL for direct upload
+      const urlResponse = await fetch('/api/admin/upload', {
         method: 'POST',
-        body: uploadFormData
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fileName,
+          fileSize: pdfFile.size,
+          fileType: pdfFile.type,
+        })
       })
 
-      const uploadData = await uploadResponse.json()
+      const urlData = await urlResponse.json()
 
-      if (!uploadResponse.ok) {
-        setError(uploadData.error || 'Failed to upload file')
+      if (!urlResponse.ok) {
+        setError(urlData.error || 'Failed to generate upload URL')
         setUploading(false)
         return
       }
+
+      // Upload file directly to Supabase using signed URL
+      const uploadResponse = await fetch(urlData.signedUrl, {
+        method: 'PUT',
+        body: pdfFile,
+        headers: {
+          'Content-Type': 'application/pdf',
+        }
+      })
+
+      if (!uploadResponse.ok) {
+        setError('Failed to upload file to storage')
+        setUploading(false)
+        return
+      }
+
+      // Get public URL for the uploaded file
+      const publicUrl = getSupabasePublicUrl(fileName)
 
       // Save metadata to database via API route
       const response = await fetch('/api/admin/books', {
@@ -128,9 +158,9 @@ export default function AdminDashboard() {
           description,
           category,
           coverImage,
-          pdfUrl: uploadData.publicUrl,
-          fileName: uploadData.fileName,
-          fileSize: uploadData.fileSize,
+          pdfUrl: publicUrl,
+          fileName,
+          fileSize: pdfFile.size,
         })
       })
 
@@ -162,7 +192,7 @@ export default function AdminDashboard() {
   }
 
   const handleDelete = async (bookId: string) => {
-    if (!confirm('Are you sure you want to delete this book?')) {
+    if (!confirm('Are you sure you want to delete this book? This will permanently remove both the database record and the PDF file from storage.')) {
       return
     }
 
@@ -171,14 +201,20 @@ export default function AdminDashboard() {
         method: 'DELETE'
       })
 
+      const data = await response.json()
+
       if (response.ok) {
-        setSuccess('Book deleted successfully!')
+        if (data.fileDeleted) {
+          setSuccess('Book and PDF file deleted successfully!')
+        } else {
+          setSuccess('Book deleted from database, but there was an issue deleting the PDF file from storage.')
+        }
         fetchBooks()
       } else {
-        const data = await response.json()
         setError(data.error || 'Failed to delete book')
       }
     } catch (error) {
+      console.error('Delete error:', error)
       setError('Something went wrong. Please try again.')
     }
   }
