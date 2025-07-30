@@ -5,15 +5,7 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   images: { unoptimized: true },
-  experimental: {
-    serverComponentsExternalPackages: ['@prisma/client', 'prisma'],
-  },
-  api: {
-    bodyParser: {
-      sizeLimit: '50mb',
-    },
-    responseLimit: '50mb',
-  },
+  serverExternalPackages: ['@prisma/client', 'prisma'],
   webpack: (config) => {
     config.resolve.alias.canvas = false;
     config.resolve.fallback = {

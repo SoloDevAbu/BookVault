@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { BookOpen, Upload, Trash2, User, LogOut, Plus, AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { supabase } from '@/lib/supabase'
 
 interface Book {
   id: string
@@ -98,17 +99,46 @@ export default function AdminDashboard() {
     }
 
     try {
-      const formData = new FormData()
-      formData.append('title', title)
-      formData.append('author', author)
-      formData.append('description', description)
-      formData.append('category', category)
-      formData.append('coverImage', coverImage)
-      formData.append('pdfFile', pdfFile)
+      // Upload file directly to Supabase from frontend
+      const fileName = `${Date.now()}-${pdfFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('books')
+        .upload(fileName, pdfFile, {
+          contentType: 'application/pdf',
+          upsert: false
+        })
 
+      if (uploadError) {
+        console.error('Upload error:', uploadError)
+        setError('Failed to upload PDF file')
+        setUploading(false)
+        return
+      }
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('books')
+        .getPublicUrl(fileName)
+      
+      const publicUrl = urlData.publicUrl
+
+      // Save metadata to database via API route
       const response = await fetch('/api/admin/books', {
         method: 'POST',
-        body: formData
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title,
+          author,
+          description,
+          category,
+          coverImage,
+          pdfUrl: publicUrl,
+          fileName,
+          fileSize: pdfFile.size,
+        })
       })
 
       const data = await response.json()
@@ -128,9 +158,10 @@ export default function AdminDashboard() {
         // Refresh books list
         fetchBooks()
       } else {
-        setError(data.error || 'Failed to upload book')
+        setError(data.error || 'Failed to save book metadata')
       }
     } catch (error) {
+      console.error('Upload error:', error)
       setError('Something went wrong. Please try again.')
     } finally {
       setUploading(false)

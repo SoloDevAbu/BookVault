@@ -7,13 +7,6 @@ import { uploadFile, getPublicUrl, deleteFile } from '@/lib/supabase'
 // Add dynamic configuration to prevent static export issues
 export const dynamic = 'force-dynamic'
 
-// Disable body parser for file uploads
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-}
-
 // Storage bucket name - change this if you want to use a different bucket
 const STORAGE_BUCKET = 'books'
 
@@ -40,15 +33,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const formData = await request.formData()
-    const title = formData.get('title') as string
-    const author = formData.get('author') as string
-    const description = formData.get('description') as string
-    const category = formData.get('category') as string
-    const coverImage = formData.get('coverImage') as string
-    const pdfFile = formData.get('pdfFile') as File
+    const body = await request.json()
+    const { title, author, description, category, coverImage, pdfUrl, fileName, fileSize } = body
 
-    if (!title || !author || !category || !pdfFile) {
+    if (!title || !author || !category || !pdfUrl || !fileName || !fileSize) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -57,45 +45,12 @@ export async function POST(request: NextRequest) {
 
     // Check file size (50MB limit for Supabase free tier)
     const maxFileSize = 50 * 1024 * 1024 // 50MB in bytes
-    if (pdfFile.size > maxFileSize) {
+    if (fileSize > maxFileSize) {
       return NextResponse.json(
-        { error: `File size too large. Maximum allowed size is 50MB. Current file size: ${(pdfFile.size / (1024 * 1024)).toFixed(2)}MB` },
+        { error: `File size too large. Maximum allowed size is 50MB. Current file size: ${(fileSize / (1024 * 1024)).toFixed(2)}MB` },
         { status: 400 }
       )
     }
-
-    // Check file type
-    if (pdfFile.type !== 'application/pdf') {
-      return NextResponse.json(
-        { error: 'Only PDF files are allowed' },
-        { status: 400 }
-      )
-    }
-
-    // Upload PDF to Supabase Storage using helper function
-    const fileName = `${Date.now()}-${pdfFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-    const fileBuffer = await pdfFile.arrayBuffer()
-    
-    const { data: uploadData, error: uploadError } = await uploadFile(
-      STORAGE_BUCKET,
-      fileName,
-      fileBuffer,
-      {
-        contentType: 'application/pdf',
-        upsert: false
-      }
-    )
-
-    if (uploadError) {
-      console.error('Upload error:', uploadError)
-      return NextResponse.json(
-        { error: 'Failed to upload PDF file' },
-        { status: 500 }
-      )
-    }
-
-    // Get public URL for the uploaded file using helper function
-    const publicUrl = getPublicUrl(STORAGE_BUCKET, fileName)
 
     // Create book record in database
     const book = await prisma.book.create({
@@ -105,9 +60,9 @@ export async function POST(request: NextRequest) {
         description: description || null,
         category: category as any,
         coverImage: coverImage || null,
-        pdfUrl: publicUrl,
+        pdfUrl,
         fileName,
-        fileSize: pdfFile.size,
+        fileSize,
         totalPages: null // You can implement PDF page counting if needed
       }
     })
