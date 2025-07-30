@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { BookOpen, Upload, Trash2, User, LogOut, Plus, AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { supabase } from '@/lib/supabase'
+
 
 interface Book {
   id: string
@@ -99,29 +99,22 @@ export default function AdminDashboard() {
     }
 
     try {
-      // Upload file directly to Supabase from frontend
-      const fileName = `${Date.now()}-${pdfFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-      
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('books')
-        .upload(fileName, pdfFile, {
-          contentType: 'application/pdf',
-          upsert: false
-        })
+      // Upload file via API route (bypasses RLS)
+      const uploadFormData = new FormData()
+      uploadFormData.append('file', pdfFile)
 
-      if (uploadError) {
-        console.error('Upload error:', uploadError)
-        setError('Failed to upload PDF file')
+      const uploadResponse = await fetch('/api/admin/upload', {
+        method: 'POST',
+        body: uploadFormData
+      })
+
+      const uploadData = await uploadResponse.json()
+
+      if (!uploadResponse.ok) {
+        setError(uploadData.error || 'Failed to upload file')
         setUploading(false)
         return
       }
-
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('books')
-        .getPublicUrl(fileName)
-      
-      const publicUrl = urlData.publicUrl
 
       // Save metadata to database via API route
       const response = await fetch('/api/admin/books', {
@@ -135,9 +128,9 @@ export default function AdminDashboard() {
           description,
           category,
           coverImage,
-          pdfUrl: publicUrl,
-          fileName,
-          fileSize: pdfFile.size,
+          pdfUrl: uploadData.publicUrl,
+          fileName: uploadData.fileName,
+          fileSize: uploadData.fileSize,
         })
       })
 
