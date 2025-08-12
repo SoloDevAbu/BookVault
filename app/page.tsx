@@ -1,31 +1,13 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { BookOpen, Users, Search, Zap } from 'lucide-react'
+import Topbar from '@/components/Topbar'
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-orange-50">
       {/* Header */}
-      <header className="container mx-auto px-4 py-6">
-        <nav className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <BookOpen className="h-8 w-8 text-blue-600" />
-            <span className="text-2xl font-bold text-gray-900">BookVault</span>
-          </div>
-          <div className="space-x-4">
-            <Link href="/signin">
-              <Button variant="ghost" className="text-gray-700 hover:text-blue-600">
-                Sign In
-              </Button>
-            </Link>
-            <Link href="/signup">
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                Get Started
-              </Button>
-            </Link>
-          </div>
-        </nav>
-      </header>
+      <Topbar />
 
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-20 text-center">
